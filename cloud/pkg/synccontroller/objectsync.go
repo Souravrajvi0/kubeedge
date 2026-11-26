@@ -89,17 +89,25 @@ func (sctl *SyncController) gcOrphanedObjectSync(sync *v1alpha1.ObjectSync) {
 
 func sendEvents(nodeName string, sync *v1alpha1.ObjectSync, resourceType string,
 	objectResourceVersion string, obj interface{}) {
-	if sync.Status.ObjectResourceVersion == "" {
-		klog.Errorf("The ObjectResourceVersion is empty in status of objectsync: %s", sync.Name)
+	if !needsResourceSync(objectResourceVersion, sync.Status.ObjectResourceVersion) {
 		return
 	}
+	klog.V(4).Infof("The resourceVersion: %s of %s in K8s is greater than in edgenode: %s, send the update event", objectResourceVersion, resourceType, sync.Status.ObjectResourceVersion)
+	msg := buildEdgeControllerMessage(nodeName, sync.Namespace, resourceType, sync.Spec.ObjectName, model.UpdateOperation, obj)
+	beehiveContext.Send(commonconst.DefaultContextSendModuleName, *msg)
+}
 
-	if CompareResourceVersion(objectResourceVersion, sync.Status.ObjectResourceVersion) > 0 {
-		// trigger the update event
-		klog.V(4).Infof("The resourceVersion: %s of %s in K8s is greater than in edgenode: %s, send the update event", objectResourceVersion, resourceType, sync.Status.ObjectResourceVersion)
-		msg := buildEdgeControllerMessage(nodeName, sync.Namespace, resourceType, sync.Spec.ObjectName, model.UpdateOperation, obj)
-		beehiveContext.Send(commonconst.DefaultContextSendModuleName, *msg)
+// needsResourceSync reports whether the cloud object is ahead of the version
+// recorded as synced to the edge. An empty ObjectSync status is treated as
+// never-acked ("0") so a Create+UpdateStatus race cannot black-hole the object.
+func needsResourceSync(objectResourceVersion, syncedResourceVersion string) bool {
+	if objectResourceVersion == "" {
+		return false
 	}
+	if syncedResourceVersion == "" {
+		return true
+	}
+	return CompareResourceVersion(objectResourceVersion, syncedResourceVersion) > 0
 }
 
 func buildEdgeControllerMessage(nodeName, namespace, resourceType, resourceName, operationType string, obj interface{}) *model.Message {

@@ -298,8 +298,12 @@ func (md *messageDispatcher) enqueueNonNamespacedResource(nodeID string, msg *be
 	clusterObjectSync, err := md.clusterObjectSyncLister.Get(clusterObjectSyncName)
 
 	switch {
-	case err == nil && clusterObjectSync.Status.ObjectResourceVersion != "":
-		if synccontroller.CompareResourceVersion(msg.GetResourceVersion(), clusterObjectSync.Status.ObjectResourceVersion) > 0 {
+	case err == nil:
+		syncedRV := clusterObjectSync.Status.ObjectResourceVersion
+		if syncedRV == "" {
+			syncedRV = "0"
+		}
+		if synccontroller.CompareResourceVersion(msg.GetResourceVersion(), syncedRV) > 0 {
 			return true
 		}
 
@@ -362,8 +366,13 @@ func (md *messageDispatcher) enqueueNamespacedResource(nodeID string, msg *beehi
 	objectSync, err := md.objectSyncLister.ObjectSyncs(resourceNamespace).Get(objectSyncName)
 
 	switch {
-	case err == nil && objectSync.Status.ObjectResourceVersion != "":
-		if synccontroller.CompareResourceVersion(msg.GetResourceVersion(), objectSync.Status.ObjectResourceVersion) > 0 {
+	case err == nil:
+		syncedRV := objectSync.Status.ObjectResourceVersion
+		if syncedRV == "" {
+			// Create succeeded but UpdateStatus to "0" failed: treat as never acked.
+			syncedRV = "0"
+		}
+		if synccontroller.CompareResourceVersion(msg.GetResourceVersion(), syncedRV) > 0 {
 			return true
 		}
 

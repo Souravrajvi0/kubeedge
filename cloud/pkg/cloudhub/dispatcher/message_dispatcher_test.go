@@ -209,6 +209,19 @@ func TestEnqueueAckMessage(t *testing.T) {
 			ExpectedStoreMessage: normalMsg1,
 		},
 		{
+			Name: "objectSync exists with empty status still enqueues newer message",
+			InitialObjectSyncs: []*v1alpha1.ObjectSync{
+				tf.NewObjectSync(tf.NewTestPodResource(tf.TestPodName, tf.TestPodUID, ""), "Pod"),
+			},
+			ReactorErrors:        tf.NoErrors,
+			InitialMessages:      []*beehivemodel.Message{},
+			CurrentArriveMessage: normalMsg1,
+			ExpectedObjectSyncs: []*v1alpha1.ObjectSync{
+				tf.NewObjectSync(tf.NewTestPodResource(tf.TestPodName, tf.TestPodUID, ""), "Pod"),
+			},
+			ExpectedStoreMessage: normalMsg1,
+		},
+		{
 			Name: "message with large resource version than already exist objectSync arrives, no message in store",
 			InitialObjectSyncs: []*v1alpha1.ObjectSync{
 				tf.NewObjectSync(tf.NewTestPodResource(tf.TestPodName, tf.TestPodUID, "1"), "Pod"),

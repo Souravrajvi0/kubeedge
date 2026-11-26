@@ -39,6 +39,28 @@ import (
 	"github.com/kubeedge/kubeedge/cloud/pkg/common/modules"
 )
 
+func TestNeedsResourceSync(t *testing.T) {
+	tests := []struct {
+		name     string
+		objectRV string
+		syncedRV string
+		want     bool
+	}{
+		{name: "empty object rv never syncs", objectRV: "", syncedRV: "1", want: false},
+		{name: "empty synced rv is never-acked", objectRV: "1", syncedRV: "", want: true},
+		{name: "cloud ahead of edge", objectRV: "2", syncedRV: "1", want: true},
+		{name: "edge already has version", objectRV: "1", syncedRV: "1", want: false},
+		{name: "stale cloud version", objectRV: "1", syncedRV: "2", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := needsResourceSync(tt.objectRV, tt.syncedRV); got != tt.want {
+				t.Errorf("needsResourceSync(%q, %q) = %v, want %v", tt.objectRV, tt.syncedRV, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCompareResourceVersion(t *testing.T) {
 	tests := []struct {
 		name       string
