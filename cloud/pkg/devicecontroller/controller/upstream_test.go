@@ -20,9 +20,28 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kubeedge/api/apis/devices/v1beta1"
+	"github.com/kubeedge/beehive/pkg/core/model"
+	"github.com/kubeedge/kubeedge/cloud/pkg/devicecontroller/constants"
+	"github.com/kubeedge/kubeedge/cloud/pkg/devicecontroller/manager"
+	"github.com/kubeedge/kubeedge/cloud/pkg/devicecontroller/types"
+	"github.com/kubeedge/kubeedge/pkg/util"
 )
+
+type captureMessageLayer struct {
+	responses []model.Message
+}
+
+func (c *captureMessageLayer) Send(model.Message) error { return nil }
+func (c *captureMessageLayer) Receive() (model.Message, error) {
+	return model.Message{}, nil
+}
+func (c *captureMessageLayer) Response(msg model.Message) error {
+	c.responses = append(c.responses, msg)
+	return nil
+}
 
 func TestNewUpstreamController(t *testing.T) {
 	assert := assert.New(t)
@@ -238,4 +257,27 @@ func TestFindTwinByName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleMembershipDetail(t *testing.T) {
+	layer := &captureMessageLayer{}
+	dc := &DownstreamController{deviceManager: &manager.DeviceManager{}}
+	dc.deviceManager.Device.Store(util.GetResourceID("default", "lamp"), &v1beta1.Device{
+		ObjectMeta: metav1.ObjectMeta{Name: "lamp", Namespace: "default"},
+		Spec:       v1beta1.DeviceSpec{NodeName: "edge-1"},
+	})
+	uc := &UpstreamController{dc: dc, messageLayer: layer}
+
+	req := model.NewMessage("").
+		BuildRouter("edgehub", constants.GroupTwin, "node/edge-1/membership/detail", model.QueryOperation)
+	uc.handleMembershipDetail(*req)
+
+	assert.Len(t, layer.responses, 1)
+	resp := layer.responses[0]
+	assert.Equal(t, req.GetID(), resp.GetParentID())
+	assert.Contains(t, resp.GetResource(), "membership/detail")
+	detail, ok := resp.Content.(types.MembershipDetail)
+	assert.True(t, ok)
+	assert.Len(t, detail.Devices, 1)
+	assert.Equal(t, "lamp", detail.Devices[0].Name)
 }

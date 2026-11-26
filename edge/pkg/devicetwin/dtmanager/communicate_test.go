@@ -141,6 +141,12 @@ func TestDealSendToCloud(t *testing.T) {
 			name:    "dealSendToCloudTest-StateDisconnected",
 			context: dtContextStateDisconnected,
 			msg:     "",
+			wantErr: errors.New("msg not Message type"),
+		},
+		{
+			name:    "dealSendToCloudTest-StateDisconnected-Queue",
+			context: dtContextStateDisconnected,
+			msg:     msg,
 			wantErr: nil,
 		},
 		{
@@ -163,8 +169,7 @@ func TestDealSendToCloud(t *testing.T) {
 				t.Errorf("dealSendToCloud() error = %v, wantErr %v", err, test.wantErr)
 				return
 			}
-			// Testing whether the message is properly stored in ConfirmMap of beehiveContext when correct message is passed
-			if err == nil && test.context.State == dtcommon.Connected {
+			if err == nil && test.msg == msg {
 				gotMsg, exist := test.context.ConfirmMap.Load("message")
 				if !exist {
 					t.Errorf("dealSendToCloud() failed to store message in ConfirmMap")

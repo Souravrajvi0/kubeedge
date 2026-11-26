@@ -84,17 +84,17 @@ func dealSendToEdge(_ *dtcontext.DTContext, _ string, msg interface{}) error {
 	return nil
 }
 func dealSendToCloud(context *dtcontext.DTContext, _ string, msg interface{}) error {
-	if strings.Compare(context.State, dtcommon.Disconnected) == 0 {
-		klog.Infof("Disconnected with cloud, not send msg to cloud")
-		return nil
-	}
 	message, ok := msg.(*model.Message)
 	if !ok {
 		return errors.New("msg not Message type")
 	}
-	beehiveContext.Send(dtcommon.HubModule, *message)
 	msgID := message.GetID()
 	context.ConfirmMap.Store(msgID, &dttype.DTMessage{Msg: message, Action: dtcommon.SendToCloud, Type: dtcommon.CommModule})
+	if strings.Compare(context.State, dtcommon.Disconnected) == 0 {
+		klog.Infof("Disconnected with cloud, queue msg %s for retry after reconnect", msgID)
+		return nil
+	}
+	beehiveContext.Send(dtcommon.HubModule, *message)
 	return nil
 }
 func dealLifeCycle(context *dtcontext.DTContext, _ string, msg interface{}) error {

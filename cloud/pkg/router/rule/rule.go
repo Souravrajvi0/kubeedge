@@ -47,7 +47,7 @@ func handleRuleEndpoint(data interface{}) (interface{}, error) {
 	}
 
 	switch message.GetOperation() {
-	case model.InsertOperation:
+	case model.InsertOperation, model.UpdateOperation:
 		addRuleEndpoint(ruleEndpoint)
 	case model.DeleteOperation:
 		deleteRuleEndpoint(ruleEndpoint.Namespace, ruleEndpoint.Name)
@@ -74,6 +74,9 @@ func handleRule(data interface{}) (interface{}, error) {
 
 	switch message.GetOperation() {
 	case model.InsertOperation:
+		addRuleWithRetry(rule)
+	case model.UpdateOperation:
+		delRule(rule.Namespace, rule.Name)
 		addRuleWithRetry(rule)
 	case model.DeleteOperation:
 		delRule(rule.Namespace, rule.Name)
