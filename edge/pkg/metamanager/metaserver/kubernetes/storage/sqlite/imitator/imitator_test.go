@@ -81,6 +81,28 @@ func TestEventListFormats(t *testing.T) {
 	}
 }
 
+func TestShouldApplyIncomingResourceVersion(t *testing.T) {
+	tests := []struct {
+		name       string
+		storedRV   uint64
+		incomingRV uint64
+		want       bool
+	}{
+		{name: "newer replaces older", storedRV: 10, incomingRV: 11, want: true},
+		{name: "equal is idempotent apply", storedRV: 10, incomingRV: 10, want: true},
+		{name: "stale is rejected", storedRV: 11, incomingRV: 10, want: false},
+		{name: "passthrough rv 0 always applies", storedRV: 11, incomingRV: 0, want: true},
+		{name: "first write", storedRV: 0, incomingRV: 1, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldApplyIncomingResourceVersion(tt.storedRV, tt.incomingRV); got != tt.want {
+				t.Errorf("shouldApplyIncomingResourceVersion(%d, %d) = %v, want %v", tt.storedRV, tt.incomingRV, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEventPreservesLargeInteger(t *testing.T) {
 	const value int64 = 9007199254740993 //2^53 + 1
 	const item = `{"apiVersion":"v1","kind":"Pod","metadata":{"name":"first"},"spec":{"large":9007199254740993}}`
