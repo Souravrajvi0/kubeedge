@@ -59,7 +59,6 @@ func (s *imitator) Inject(msg model.Message) {
 	}
 }
 
-// TODO: filter out insert or update req that the obj's rev is smaller than the stored
 func (s *imitator) InsertOrUpdateObj(_ context.Context, obj runtime.Object) error {
 	key, err := metaserver.KeyFuncObj(obj)
 	if err != nil {
@@ -76,6 +75,9 @@ func (s *imitator) InsertOrUpdateObj(_ context.Context, obj runtime.Object) erro
 		return err
 	}
 	objRv, err := s.versioner.ObjectResourceVersion(obj)
+	if err != nil {
+		return err
+	}
 	m := models.MetaV2{
 		Key:                  key,
 		GroupVersionResource: gvr.String(),
@@ -87,9 +89,24 @@ func (s *imitator) InsertOrUpdateObj(_ context.Context, obj runtime.Object) erro
 	return s.insertOrReplaceMetaV2(m, objRv)
 }
 
+func shouldApplyIncomingResourceVersion(storedRV, incomingRV uint64) bool {
+	if incomingRV == 0 {
+		return true
+	}
+	return incomingRV >= storedRV
+}
+
 func (s *imitator) insertOrReplaceMetaV2(m models.MetaV2, objRv uint64) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	if objRv > 0 {
+		existing, err := dbclient.NewMetaV2Service().GetByKey(m.Key)
+		if err == nil && existing != nil && !shouldApplyIncomingResourceVersion(existing.ResourceVersion, objRv) {
+			klog.V(4).Infof("[metaserver]skip stale obj %v incoming rv %d stored rv %d", m.Key, objRv, existing.ResourceVersion)
+			return nil
+		}
+	}
 
 	err := dbclient.NewMetaV2Service().RetryInsertOrReplaceMetaV2(&m, 3)
 	if err != nil {

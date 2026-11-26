@@ -562,12 +562,14 @@ func isTwinValueDiff(twin *dttype.MsgTwin, msgTwin *dttype.MsgTwin, dealType int
 	}
 
 	valueType := stringType
-	if strings.Compare(twin.Metadata.Type, dtcommon.TypeDeleted) == 0 {
+	if twin.Metadata != nil && strings.Compare(twin.Metadata.Type, dtcommon.TypeDeleted) == 0 {
 		if msgTwin.Metadata != nil {
 			valueType = msgTwin.Metadata.Type
 		}
-	} else {
+	} else if twin.Metadata != nil && twin.Metadata.Type != "" {
 		valueType = twin.Metadata.Type
+	} else if msgTwin.Metadata != nil && msgTwin.Metadata.Type != "" {
+		valueType = msgTwin.Metadata.Type
 	}
 	if hasMsgTwin {
 		if hasTwin {
@@ -590,7 +592,7 @@ func dealTwinCompare(returnResult *dttype.DealTwinResult, deviceID string, key s
 	document[key] = &dttype.TwinDoc{}
 	copytwin := dttype.CopyMsgTwin(twin, true)
 	document[key].LastState = &copytwin
-	if strings.Compare(twin.Metadata.Type, dtcommon.TypeDeleted) == 0 {
+	if twin.Metadata != nil && strings.Compare(twin.Metadata.Type, dtcommon.TypeDeleted) == 0 {
 		document[key].LastState = nil
 	}
 
@@ -974,6 +976,14 @@ func dealTwinAdd(returnResult *dttype.DealTwinResult, deviceID string, key strin
 	return nil
 }
 
+func isTwinDelete(msgTwin *dttype.MsgTwin, dealType int) bool {
+	if dealType == RestDealType {
+		return msgTwin == nil
+	}
+	return msgTwin != nil && msgTwin.Metadata != nil &&
+		strings.Compare(msgTwin.Metadata.Type, dtcommon.TypeDeleted) == 0
+}
+
 // DealMsgTwin get diff while updating twin
 func DealMsgTwin(context *dtcontext.DTContext, deviceID string, msgTwins map[string]*dttype.MsgTwin, dealType int) dttype.DealTwinResult {
 	add := make([]models.DeviceTwin, 0)
@@ -1011,11 +1021,15 @@ func DealMsgTwin(context *dtcontext.DTContext, deviceID string, msgTwins map[str
 	var err error
 	for key, msgTwin := range msgTwins {
 		if twin, exist := twins[key]; exist {
-			if dealType >= 1 && msgTwin != nil && (msgTwin.Metadata == nil) {
+			if dealType >= SyncDealType && msgTwin != nil && msgTwin.Metadata == nil {
 				klog.Info("Not found metadata of twin")
 			}
-			if msgTwin == nil && dealType == 0 || dealType >= 1 && strings.Compare(msgTwin.Metadata.Type, dtcommon.TypeDeleted) == 0 {
+			if isTwinDelete(msgTwin, dealType) {
 				dealTwinDelete(&returnResult, deviceID, key, twin, msgTwin, dealType)
+				continue
+			}
+			if msgTwin == nil {
+				klog.Errorf("nil twin payload for device %s key %s", deviceID, key)
 				continue
 			}
 			err = dealTwinCompare(&returnResult, deviceID, key, twin, msgTwin, dealType)

@@ -1524,6 +1524,36 @@ func TestDealMsgTwin(t *testing.T) {
 	}
 }
 
+func TestDealMsgTwinSyncNilMetadataDoesNotPanic(t *testing.T) {
+	value := "25"
+	optionTrue := true
+	ctx := contextFunc(deviceA)
+	device := dttype.Device{Twin: map[string]*dttype.MsgTwin{
+		key1: {
+			Expected: &dttype.TwinValue{Value: &value},
+			Optional: &optionTrue,
+			Metadata: &dttype.TypeMetadata{Type: stringType},
+		},
+	}}
+	ctx.DeviceList.Store(deviceA, &device)
+
+	msgTwins := map[string]*dttype.MsgTwin{
+		key1: {
+			Expected: &dttype.TwinValue{Value: &value},
+		},
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("DealMsgTwin panicked on TwinCloudSync with nil metadata: %v", r)
+		}
+	}()
+	got := DealMsgTwin(&ctx, deviceA, msgTwins, SyncDealType)
+	if got.Err != nil {
+		t.Fatalf("DealMsgTwin returned unexpected err: %v", got.Err)
+	}
+}
+
 func generateTwinContent(eventID, deviceID string) ([]byte, []byte, dtcontext.DTContext) {
 	content, _ := json.Marshal(dttype.DeviceTwinUpdate{BaseMessage: dttype.BaseMessage{EventID: eventID}})
 	contentKeyTwin, _ := json.Marshal(keyTwinUpdateFunc())
