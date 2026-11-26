@@ -20,8 +20,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kubeedge/api/apis/devices/v1beta1"
+	"github.com/kubeedge/kubeedge/cloud/pkg/devicecontroller/manager"
+	"github.com/kubeedge/kubeedge/pkg/util"
 )
 
 func TestRemoveTwinWithNameChanged(t *testing.T) {
@@ -124,4 +127,23 @@ func TestRemoveTwinWithNameChanged(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.deviceStatus.Status.Twins)
 		})
 	}
+}
+
+func TestDevicesForNode(t *testing.T) {
+	dc := &DownstreamController{deviceManager: &manager.DeviceManager{}}
+	onNode := &v1beta1.Device{
+		ObjectMeta: metav1.ObjectMeta{Name: "lamp", Namespace: "default"},
+		Spec:       v1beta1.DeviceSpec{NodeName: "edge-1"},
+	}
+	otherNode := &v1beta1.Device{
+		ObjectMeta: metav1.ObjectMeta{Name: "meter", Namespace: "default"},
+		Spec:       v1beta1.DeviceSpec{NodeName: "edge-2"},
+	}
+	dc.deviceManager.Device.Store(util.GetResourceID("default", "lamp"), onNode)
+	dc.deviceManager.Device.Store(util.GetResourceID("default", "meter"), otherNode)
+
+	got := dc.devicesForNode("edge-1")
+	assert.Len(t, got, 1)
+	assert.Equal(t, "lamp", got[0].Name)
+	assert.Equal(t, util.GetResourceID("default", "lamp"), got[0].ID)
 }

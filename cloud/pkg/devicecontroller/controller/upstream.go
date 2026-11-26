@@ -20,7 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"time"
 
+	"github.com/google/uuid"
 	"k8s.io/klog/v2"
 
 	"github.com/kubeedge/api/apis/devices/v1beta1"
@@ -118,6 +120,7 @@ func (uc *UpstreamController) dispatchMessage() {
 		case constants.ResourceDeviceStateUpdated:
 			uc.deviceStatesChan <- msg
 		case constants.ResourceTypeMembershipDetail:
+			uc.handleMembershipDetail(msg)
 		default:
 			klog.Warningf("Message: %s, with resource type: %s not intended for device controller", msg.GetID(), resourceType)
 		}
@@ -308,6 +311,37 @@ func (uc *UpstreamController) updateDeviceStatus() {
 			klog.Infof("Message: %s process successfully", msg.GetID())
 		}
 	}
+}
+
+func (uc *UpstreamController) handleMembershipDetail(msg model.Message) {
+	nodeID, err := messagelayer.GetNodeID(msg)
+	if err != nil {
+		klog.Warningf("Message: %s process failure, get node id failed with error: %s", msg.GetID(), err)
+		return
+	}
+
+	devices := uc.dc.devicesForNode(nodeID)
+	content := types.MembershipDetail{
+		BaseMessage: types.BaseMessage{
+			EventID:   uuid.New().String(),
+			Timestamp: time.Now().UnixNano() / 1e6,
+		},
+		Devices: devices,
+	}
+
+	resMsg := model.NewMessage(msg.GetID())
+	resource, err := messagelayer.BuildResourceForDevice(nodeID, constants.ResourceTypeMembershipDetail, "")
+	if err != nil {
+		klog.Warningf("Message: %s process failure, build membership/detail resource failed with error: %s", msg.GetID(), err)
+		return
+	}
+	resMsg.BuildRouter(modules.DeviceControllerModuleName, constants.GroupTwin, resource, model.ResponseOperation)
+	resMsg.Content = content
+	if err := uc.messageLayer.Response(*resMsg); err != nil {
+		klog.Warningf("Message: %s process failure, membership/detail response failed with error: %s", msg.GetID(), err)
+		return
+	}
+	klog.Infof("Message: %s membership/detail processed, %d devices for node %s", msg.GetID(), len(devices), nodeID)
 }
 
 func (uc *UpstreamController) unmarshalDeviceStatusMessage(msg model.Message) (*types.DeviceTwinUpdate, error) {

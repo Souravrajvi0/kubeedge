@@ -229,6 +229,19 @@ func createDevice(device *v1beta1.Device) types.Device {
 	return edgeDevice
 }
 
+func (dc *DownstreamController) devicesForNode(nodeName string) []types.Device {
+	var devices []types.Device
+	dc.deviceManager.Device.Range(func(_, v interface{}) bool {
+		deviceItem, ok := v.(*v1beta1.Device)
+		if !ok || deviceItem.Spec.NodeName != nodeName {
+			return true
+		}
+		devices = append(devices, createDevice(deviceItem))
+		return true
+	})
+	return devices
+}
+
 // isExistModel check if the target node already has the model.
 func isExistModel(deviceMap *sync.Map, device *v1beta1.Device) bool {
 	var res bool

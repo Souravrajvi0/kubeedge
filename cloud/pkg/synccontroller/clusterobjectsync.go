@@ -117,12 +117,11 @@ func sendClusterObjectSyncEvent(nodeName string, sync *v1alpha1.ClusterObjectSyn
 		klog.Warningf("failed to set metatype :%v", err)
 	}
 
-	if sync.Status.ObjectResourceVersion == "" {
-		klog.Errorf("The ObjectResourceVersion is empty in status of clusterObjectSync: %s", sync.Name)
-		return
+	syncedRV := sync.Status.ObjectResourceVersion
+	if syncedRV == "" {
+		syncedRV = "0"
 	}
-
-	if compareResourceVersionFunc(objectResourceVersion, sync.Status.ObjectResourceVersion) > 0 {
+	if compareResourceVersionFunc(objectResourceVersion, syncedRV) > 0 {
 		// trigger the update event
 		klog.V(4).Infof("The resourceVersion: %s of %s in K8s is greater than in edgenode: %s, send the update event", objectResourceVersion, resourceType, sync.Status.ObjectResourceVersion)
 		msg := buildEdgeControllerMessageFunc(nodeName, models.NullNamespace, resourceType, sync.Spec.ObjectName, model.UpdateOperation, obj)
